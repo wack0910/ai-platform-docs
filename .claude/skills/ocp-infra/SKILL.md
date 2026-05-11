@@ -18,7 +18,8 @@ Master 2:  192.168.0.12
 Master 3:  192.168.0.13
 Worker 1:  192.168.0.14
 Worker 2:  192.168.0.15
-GPU Worker: 192.168.0.16 (5월 추가 — 현재 DNS/HAProxy 주석 처리)
+Worker 3:  10.1.10.52   (외부망 노드 — DNS View 필수, GW=10.1.10.51)
+GPU Worker: 192.168.0.16 (추후 추가 — 현재 DNS/HAProxy 주석 처리)
 
 도메인: cpf.com / 클러스터: ocp / OCP: 4.21 (stable-4.21.6)
 내부 서브넷: 192.168.0.0/24 / 게이트웨이: 192.168.0.1
@@ -30,8 +31,9 @@ IP 설정 파일: nodes-config.env (배포 전 source하여 사용)
 - **외부 접근**: 개발 PC → 10.1.10.51 (Bastion ens33)
 - **내부 통신**: 모든 OCP 노드 → 192.168.0.1 (Bastion ens35)
 - **api.ocp.cpf.com** → 10.1.10.51 (외부용)
-- **api-int.ocp.cpf.com** → 192.168.0.1 (OCP 노드 내부 통신용 — 필수)
+- **api-int.ocp.cpf.com** → 192.168.0.1 (내부 192.x 노드) / 10.1.10.51 (외부 10.x 노드, DNS View)
 - **NAT**: 내부 노드의 외부 인터넷 접근은 Bastion MASQUERADE 경유
+- **DNS View (split-horizon)**: 10.x 대역 Worker 추가 시 필수. 클라이언트 대역별로 api-int 응답 분리.
 
 ## 제약 사항
 
@@ -158,6 +160,71 @@ sudo coreos-installer install /dev/sda \
 
 # 3. 재부팅
 sudo reboot
+```
+
+## 외부망(10.x) Worker 노드 추가 시 추가 절차
+
+내부 192.x 노드와 달리 10.x 대역 Worker는 다음 작업이 선행되어야 한다.
+
+### 1. DNS View 설정 (Bastion `/etc/named.conf`)
+
+```bash
+view "external" {
+    match-clients { 10.1.10.0/24; 127.0.0.1; };
+    zone "cpf.com" { type master; file "forward.zone.external"; };
+    # ... 기타 zone
+};
+view "internal" {
+    match-clients { 192.168.0.0/24; };
+    zone "cpf.com" { type master; file "forward.zone"; };
+    # ... 기타 zone
+};
+```
+
+`/var/named/forward.zone.external`: `api-int.ocp IN A 10.1.10.51` (Bastion 외부 IP)
+
+```bash
+chown root:named /var/named/forward.zone.external && chmod 640
+systemctl restart named
+```
+
+### 2. coreos-installer — GW는 반드시 Bastion(10.1.10.51)
+
+```bash
+sudo coreos-installer install /dev/sda \
+  --ignition-url=http://10.1.10.51:8080/ignition/worker.ign \
+  --insecure-ignition \
+  --append-karg "ip=10.1.10.52::10.1.10.51:255.255.255.0:worker3.ocp.cpf.com:ens33:none" \
+  --append-karg "nameserver=10.1.10.51"
+#                     ↑ GW = Bastion (외부 라우터 10.1.10.254 아님)
+```
+
+> GW를 외부 라우터로 설정하면 192.168.0.x 대역 통신 불가 (외부 라우터가 내부 경로 모름)
+
+### 3. 부팅 후 확인 사항
+
+```bash
+# hostname 확인 (localhost.localdomain이면 수동 설정)
+sudo hostnamectl set-hostname worker3.ocp.cpf.com
+
+# 192.x 라우팅 확인 (없으면 수동 추가)
+ping 192.168.0.1 || sudo nmcli con mod ovs-if-br-ex +ipv4.routes "192.168.0.0/24 10.1.10.51" && sudo nmcli con up ovs-if-br-ex
+```
+
+### 4. CSR hostname 오류 복구
+
+hostname 수정 전 CSR이 승인된 경우 노드 재가입 필요:
+
+```bash
+# Bastion
+oc delete node localhost.localdomain
+
+# worker3
+sudo rm -f /var/lib/kubelet/kubeconfig /var/lib/kubelet/pki/kubelet-client-current.pem
+sudo systemctl restart kubelet
+
+# Bastion — 새 CSR 승인 (worker3.ocp.cpf.com 확인 후)
+oc get csr -o name | xargs oc adm certificate approve
 ```
 
 ## 설치 완료 검증

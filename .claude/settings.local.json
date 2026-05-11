@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(ssh-keygen -t rsa -b 4096 -N \"\" -f ~/.ssh/id_rsa -q)",
-      "Bash(ssh *)"
+      "Bash(ssh *)",
+      "mcp__f7082ca5-fb07-434f-8ce0-f9741cf281b4__notion-fetch",
+      "mcp__f7082ca5-fb07-434f-8ce0-f9741cf281b4__notion-update-page",
+      "mcp__f7082ca5-fb07-434f-8ce0-f9741cf281b4__notion-search",
+      "mcp__f7082ca5-fb07-434f-8ce0-f9741cf281b4__notion-create-pages",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh pr create --title 'OCP 운영: 이기종 네트워크 Worker 연결 가이드 및 Notion MCP 권한 추가' --body ' *)",
+      "PowerShell(cd \"C:\\\\Users\\\\최윤석\\\\OneDrive - ITCEN\\\\Claude-code\\\\ai-platform-docs\\\\.claude\\\\worktrees\\\\magical-benz-1cc444\"; $env:PATH + \";C:\\\\Program Files\\\\GitHub CLI\" | Set-Item Env:PATH; $url = \"https://api.github.com/repos/wack0910/ai-platform-docs/pulls\"; $token = git config --global github.token 2>$null; if \\(-not $token\\) { $token = $env:GITHUB_TOKEN }; $token)",
+      "Bash(git remote *)",
+      "Bash(git config *)"
     ]
   }
 }
