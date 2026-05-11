@@ -34,6 +34,7 @@
 │          OCP (OpenShift Container Platform)           │
 │                                                       │
 │  Master 1-3: 192.168.0.11-13  Worker 1-2: .14-.15   │
+│  Worker 3: 10.1.10.52 (외부망, DNS View 적용)        │
 │                                                       │
 │  [API Gateway]  ←── 모든 트래픽 진입점                │
 │       │                                               │
@@ -67,7 +68,8 @@
 | Master 3 | — | **192.168.0.13** | ens35 (내부 전용) |
 | Worker 1 | — | **192.168.0.14** | ens35 (내부 전용) |
 | Worker 2 | — | **192.168.0.15** | ens35 (내부 전용) |
-| GPU Worker | — | **192.168.0.16** | ens35 (내부 전용, 5월) |
+| Worker 3 | **10.1.10.52** | — | ens33 (외부망, DNS View 필요) |
+| GPU Worker | — | **192.168.0.16** | ens35 (내부 전용, 추후 추가) |
 
 ### Bastion 역할 (이중 NIC)
 
@@ -83,9 +85,10 @@
          (모든 OCP 노드)
 ```
 
-- **DNS**: `api.ocp.cpf.com` → 10.1.10.51 / `api-int.ocp.cpf.com` → 192.168.0.1
+- **DNS**: `api.ocp.cpf.com` → 10.1.10.51 / `api-int.ocp.cpf.com` → 192.168.0.1 (내부 노드) / 10.1.10.51 (10.x 노드, DNS View)
 - **HAProxy**: 외부(10.1.10.51) + 내부(192.168.0.1) 동시 바인딩, 백엔드는 192.168.0.x
 - **NAT**: 내부 노드들의 외부 인터넷 접근은 Bastion NAT를 경유
+- **DNS View (split-horizon)**: 10.x 대역 노드는 api-int → 10.1.10.51 응답, 192.x 노드는 기존 유지 (이기종 네트워크 Worker 추가 시 필수)
 - **IP 설정 파일**: `nodes-config.env` — 배포 전 IP를 직접 수정 가능
 
 ---
